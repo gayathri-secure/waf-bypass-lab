@@ -1,0 +1,83 @@
+name: waf-lab
+
+services:
+  # ---------------------------------------------------------
+  # WAF: Apache httpd + ModSecurity v2.9.15 + OWASP CRS 4.30
+  # Front door. Everything from Kali hits this first.
+  # ---------------------------------------------------------
+  waf:
+    image: owasp/modsecurity-crs:apache
+    container_name: waf
+    restart: unless-stopped
+    environment:
+      BACKEND: "http://dvwa:80"          # where clean traffic is forwarded
+      PORT: "8080"                        # internal listen port (unprivileged)
+      SERVER_NAME: "waf-lab"
+      MODSEC_RULE_ENGINE: "On"            # On = blocking mode
+      BLOCKING_PARANOIA: "1"              # PL1: standard protection level
+      DETECTION_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"                # block when inbound score >= 5
+      ANOMALY_OUTBOUND: "4"
+      MODSEC_AUDIT_ENGINE: "RelevantOnly" # log denied requests
+      MODSEC_AUDIT_LOG: "/dev/stdout"     # audit log visible in docker logs
+      MODSEC_AUDIT_LOG_FORMAT: "JSON"
+      PROXY_TIMEOUT: "60"
+    ports:
+      - "80:8080"                         # Kali/host reaches WAF on port 80
+    depends_on:
+      - dvwa
+    networks:
+      - wafnet
+    volumes:
+      - ./rules/custom-cmdi.conf:/opt/owasp-crs/plugins/custom-after.conf:ro
+
+  # ---------------------------------------------------------
+  # DVWA: the intentionally vulnerable target app
+  # ---------------------------------------------------------
+  dvwa:
+    image: ghcr.io/digininja/dvwa:latest
+    container_name: dvwa
+    restart: unless-stopped
+    environment:
+      DB_SERVER: "db"
+      DB_DATABASE: "dvwa"
+      DB_USER: "dvwa"
+      DB_PASSWORD: "p@ssw0rd"
+      DEFAULT_SECURITY_LEVEL: "low"       # DVWA internal security = low
+      DISABLE_AUTHENTICATION: "true"      # no login needed (simplifies sqlmap)
+    ports:
+      - "127.0.0.1:8081:80"               # direct access, WAF BYPASSED, host only
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wafnet
+
+  # ---------------------------------------------------------
+  # MariaDB: backend database, never exposed to the host
+  # ---------------------------------------------------------
+  db:
+    image: mariadb:10.11
+    container_name: dvwa-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "dvwa"
+      MARIADB_DATABASE: "dvwa"
+      MARIADB_USER: "dvwa"
+      MARIADB_PASSWORD: "p@ssw0rd"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - wafnet
+
+networks:
+  wafnet:
+    driver: bridge
+
+volumes:
+  dbdata:

@@ -1,0 +1,41 @@
+﻿
+[Sat Nov 14 15:49:53.914334 2026] [security2:error] [pid 734:tid 133784598996672] [client 172.18.0.1:44202] ModSecurity: Warning. detected SQLi using libinjection 
+with fingerprint 's&sos' [file "/etc/modsecurity.d/owasp-crs/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"] [line "66"] [id "942100"] [msg "SQL Injection Attack 
+Detected via libinjection"] [data "Matched Data: s&sos found within ARGS:id: 1' OR '1'='1"] [severity "CRITICAL"] [ver "OWASP_CRS/4.30.0"] [tag "application-multi"] 
+[tag "language-multi"] [tag "platform-multi"] [tag "attack-sqli"] [tag "paranoia-level/1"] [tag "OWASP_CRS"] [tag "OWASP_CRS/ATTACK-SQLI"] [tag 
+"capec/1000/152/248/66"] [hostname "lab.local"] [uri "/vulnerabilities/sqli/"] [unique_id "aviDIXPhnjz-DHZ0BbOTuQAAAMs"]
+[Sat Nov 14 15:49:53.916844 2026] [security2:error] [pid 734:tid 133784598996672] [client 172.18.0.1:44202] ModSecurity: Access denied with code 403 (phase 2). 
+Operator GE matched 5 at TX:blocking_inbound_anomaly_score. [file "/etc/modsecurity.d/owasp-crs/rules/REQUEST-949-BLOCKING-EVALUATION.conf"] [line "233"] [id 
+"949110"] [msg "Inbound Anomaly Score Exceeded (Total Score: 5)"] [ver "OWASP_CRS/4.30.0"] [tag "anomaly-evaluation"] [tag "OWASP_CRS"] [hostname "lab.local"] [uri 
+"/vulnerabilities/sqli/"] [unique_id "aviDIXPhnjz-DHZ0BbOTuQAAAMs"]
+{"transaction":{"time":"14/Nov/2026:15:49:53.918414 +0000","transaction_id":"aviDIXPhnjz-DHZ0BbOTuQAAAMs","remote_address":"172.18.0.1","remote_port":44202,"local_addr
+ess":"172.18.0.4","local_port":8080},"request":{"request_line":"GET /vulnerabilities/sqli/?id=1%27%20OR%20%271%27%3D%271&Submit=Submit HTTP/1.1","headers":{"Host":"lab
+.local","User-Agent":"curl/8.21.0","Accept":"*/*"}},"response":{"protocol":"HTTP/1.1","status":403,"headers":{"X-Frame-Options":"SAMEORIGIN","Content-Length":"239","Co
+ntent-Type":"text/html; charset=iso-8859-1"},"body":"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" 
+\"http://www.w3.org/TR/html4/strict.dtd\">\n<html><head>\n<title>403 Forbidden</title>\n</head><body>\n<h1>Forbidden</h1>\n<p>You don't have permission to access this 
+resource.</p>\n</body></html>\n"},"audit_data":{"messages":["Warning. detected SQLi using libinjection with fingerprint 's&sos' [file 
+\"/etc/modsecurity.d/owasp-crs/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf\"] [line \"66\"] [id \"942100\"] [msg \"SQL Injection Attack Detected via 
+libinjection\"] [data \"Matched Data: s&sos found within ARGS:id: 1' OR '1'='1\"] [severity \"CRITICAL\"] [ver \"OWASP_CRS/4.30.0\"] [tag \"application-multi\"] [tag 
+\"language-multi\"] [tag \"platform-multi\"] [tag \"attack-sqli\"] [tag \"paranoia-level/1\"] [tag \"OWASP_CRS\"] [tag \"OWASP_CRS/ATTACK-SQLI\"] [tag 
+\"capec/1000/152/248/66\"]","Access denied with code 403 (phase 2). Operator GE matched 5 at TX:blocking_inbound_anomaly_score. [file 
+\"/etc/modsecurity.d/owasp-crs/rules/REQUEST-949-BLOCKING-EVALUATION.conf\"] [line \"233\"] [id \"949110\"] [msg \"Inbound Anomaly Score Exceeded (Total Score: 5)\"] 
+[ver \"OWASP_CRS/4.30.0\"] [tag \"anomaly-evaluation\"] [tag \"OWASP_CRS\"]","Warning. Unconditional match in SecAction. [file 
+\"/etc/modsecurity.d/owasp-crs/rules/RESPONSE-980-CORRELATION.conf\"] [line \"99\"] [id \"980170\"] [msg \"Anomaly Scores: (Inbound Scores: blocking=5, detection=5, 
+per_pl=5-0-0-0, threshold=5) - (Outbound Scores: blocking=0, detection=0, per_pl=0-0-0-0, threshold=4) - (SQLI=5, XSS=0, RFI=0, LFI=0, RCE=0, PHPI=0, HTTP=0, SESS=0, 
+COMBINED_SCORE=5)\"] [ver \"OWASP_CRS/4.30.0\"] [tag \"reporting\"] [tag \"OWASP_CRS\"]"],"error_messages":["[file \"apache2_util.c\"] [line 286] [level 3] 
+ModSecurity: Warning. detected SQLi using libinjection with fingerprint 's&sos' [file \"/etc/modsecurity.d/owasp-crs/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf\"] 
+[line \"66\"] [id \"942100\"] [msg \"SQL Injection Attack Detected via libinjection\"] [data \"Matched Data: s&sos found within ARGS:id: 1' OR '1'='1\"] [severity 
+\"CRITICAL\"] [ver \"OWASP_CRS/4.30.0\"] [tag \"application-multi\"] [tag \"language-multi\"] [tag \"platform-multi\"] [tag \"attack-sqli\"] [tag 
+\"paranoia-level/1\"] [tag \"OWASP_CRS\"] [tag \"OWASP_CRS/ATTACK-SQLI\"] [tag \"capec/1000/152/248/66\"] [hostname \"lab.local\"] [uri \"/vulnerabilities/sqli/\"] 
+[unique_id \"aviDIXPhnjz-DHZ0BbOTuQAAAMs\"]","[file \"apache2_util.c\"] [line 286] [level 3] ModSecurity: Access denied with code 403 (phase 2). Operator GE matched 5 
+at TX:blocking_inbound_anomaly_score. [file \"/etc/modsecurity.d/owasp-crs/rules/REQUEST-949-BLOCKING-EVALUATION.conf\"] [line \"233\"] [id \"949110\"] [msg \"Inbound 
+Anomaly Score Exceeded (Total Score: 5)\"] [ver \"OWASP_CRS/4.30.0\"] [tag \"anomaly-evaluation\"] [tag \"OWASP_CRS\"] [hostname \"lab.local\"] [uri 
+\"/vulnerabilities/sqli/\"] [unique_id \"aviDIXPhnjz-DHZ0BbOTuQAAAMs\"]","[file \"apache2_util.c\"] [line 286] [level 3] ModSecurity: Warning. Unconditional match in 
+SecAction. [file \"/etc/modsecurity.d/owasp-crs/rules/RESPONSE-980-CORRELATION.conf\"] [line \"99\"] [id \"980170\"] [msg \"Anomaly Scores: (Inbound Scores: 
+blocking=5, detection=5, per_pl=5-0-0-0, threshold=5) - (Outbound Scores: blocking=0, detection=0, per_pl=0-0-0-0, threshold=4) - (SQLI=5, XSS=0, RFI=0, LFI=0, RCE=0, 
+PHPI=0, HTTP=0, SESS=0, COMBINED_SCORE=5)\"] [ver \"OWASP_CRS/4.30.0\"] [tag \"reporting\"] [tag \"OWASP_CRS\"] [hostname \"lab.local\"] [uri 
+\"/vulnerabilities/sqli/\"] [unique_id \"aviDIXPhnjz-DHZ0BbOTuQAAAMs\"]"],"action":{"intercepted":true,"phase":2,"message":"Operator GE matched 5 at TX:blocking_inboun
+d_anomaly_score."},"handler":"proxy-server","stopwatch":{"p1":3294,"p2":9981,"p3":0,"p4":0,"p5":289,"sr":0,"sw":1,"l":0,"gc":0},"response_body_dechunked":true,"produce
+r":["ModSecurity for Apache/2.9.15 (http://www.modsecurity.org/)","OWASP_CRS/4.30.0"],"server":"Apache","engine_mode":"ENABLED"}}
+
+
