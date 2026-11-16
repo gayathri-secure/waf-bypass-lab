@@ -102,15 +102,19 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:8081/?id=1%27%20OR%20
 ### 5. Reproduce the findings
 
 ```bash
-# SQL injection through the WAF — blocked
-bash payloads/sqli.txt          # or run the curl loop in docs/04
+# SQL injection through the WAF — expect 403
+curl -s -o /dev/null -w "%{http_code}\n" -G \
+  --data-urlencode "id=1' AND 1=1-- -" \
+  http://localhost/vulnerabilities/sqli/
 
-# Command injection through the WAF — bypassed (before Phase 7 rules)
-python3 payloads/smuggling.py   # edit HOST at the top first
+# Command injection through the WAF — expect 403 once the Phase 7 rules are loaded
+# (expect 200 + "uid=33" if you run it before adding rules/custom-cmdi.conf)
+curl -s --data-urlencode "ip=127.0.0.1;id" --data-urlencode "Submit=Submit" \
+  http://localhost/vulnerabilities/exec/
+
+# Request smuggling probes — edit HOST at the top of the file first
+python3 payloads/smuggling.py
 ```
-
-See `docs/04-attack-results.md` for the exact command used for every row.
-
 ---
 
 ## Evidence gallery
@@ -235,7 +239,7 @@ Full analysis, risk ratings and remediation: [`docs/05-conclusion.md`](docs/05-c
 │   ├── cmdi.txt
 │   └── smuggling.py
 └── evidence/
-    ├── screenshots/             # 28 screenshots, phase2-* … phase7-*
+    ├── screenshots/             # 29 screenshots, phase2-* … phase7-*
     └── logs/                    # WAF audit-log extracts (JSON)
 ```
 
