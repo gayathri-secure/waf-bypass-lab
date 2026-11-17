@@ -84,12 +84,17 @@ Rows 1–4 are **execution-confirmed**: HTTP 200, shell output in the response, 
 never even scored. Reproduced identically on `DIRECT:8081`, confirming the defect
 is the application's and the WAF is the only difference.
 
-**Why the split?** Rules 932160 and 932380 are lists of Unix command names.
-`cat` and `whoami` are on them; `id` is not. `$IFS`, backslash-escaping, `<`
-redirection and `?` globbing are all normalised before matching, so they add
-nothing — 932160 caught `cat` however it was spelled. Conversely, the separator
-(`;`, `|`, `&&`, newline) is irrelevant to detection, because the rule matches the
-command word, not the shell grammar.
+**Why the split?** The 932xxx rules are fixed phrase lists and regexes, not a shell
+grammar. At paranoia level 1, 932160 is documented as matching commands **with a full
+path**: its data file contains `bin/cat` and `bin/id`, not `cat` and `id`. It also
+contains file paths such as `etc/passwd`. Rows 5–9 therefore matched because every one of
+them referenced `/etc/passwd` (930120 scores restricted-file access independently), not
+because the command was spelled `cat`.
+
+Bare values confirm the model: `ip=cat`, `ip=id`, `ip=pwd` and `ip=uname` all return
+`200`; `ip=whoami` returns `403` under 932260, a regex of bare command names. Conversely,
+the separator (`;`, `|`, `&&`, newline) is irrelevant to detection, because the rules match
+a command token, not shell syntax.
 
 **Conclusion:** command injection at PL1 is protected by a keyword list. Lists
 have gaps, and `id` sits in one. This is the lab's primary finding.

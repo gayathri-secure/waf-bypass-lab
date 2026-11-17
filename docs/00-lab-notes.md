@@ -166,9 +166,11 @@ Endpoint: `POST /vulnerabilities/exec/`, parameter `ip`.
 - `%0a` written literally was double-encoded by `--data-urlencode` (`%250a`), so PHP
   received the text `%0a` and nothing executed. Fixed by building a real newline with
   `$'...\n...'`.
-- Key insight: detection is a **command-name list**. `id` is absent at PL1, so the
-  separator (`;`, `|`, `&&`, newline) is irrelevant to detection. `cat` and `whoami`
-  are present, so they are caught however they are spelled.
+- Key insight: detection is a **fixed phrase list**, not a shell grammar. At PL1, 932160
+  matches commands *with a full path* (`bin/cat`), and `etc/passwd` is in the same list —
+  so rows 5–9 were caught by the path, not by the command. Checked later: bare `cat`,
+  `id`, `pwd`, `uname` → 200; bare `whoami` → 403 (932260). The separator is irrelevant
+  either way, because the rule matches a token, not shell syntax.
 - Screenshots: `phase5-01` … `phase5-05`.
 
 ### 2026-11-16 — Phase 6: HTTP request smuggling
@@ -319,6 +321,11 @@ fix the warning, then narrow the outbound rules for that path. No blanket exclus
    carried `920350` (+3 numeric-Host noise). Always confirm *which* rule fired.
 7. **Assumed a rule that exists must be able to fire.** Rule 920181 is loaded but cannot
    evaluate after Apache's header normalisation. Presence ≠ coverage.
+8. **Pasted a PowerShell command into Kali.** `-w "%{http_code}`n"` opened a quote and a
+   backtick zsh never closed → `dquote bquote>`, and nothing ran. Match the command to
+   the shell; in zsh use `'%{http_code}\n'`.
+9. **Used `<pre>` as proof of execution.** DVWA renders `<pre>` on every run, so its
+   presence proves nothing. Grep for the command's *output*, not for the template.
 
 ---
 

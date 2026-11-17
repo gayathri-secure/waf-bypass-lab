@@ -244,9 +244,18 @@ and no `93xxxx` rule in the audit log. The request was not merely allowed; it wa
 scored. Each was reproduced identically on the control path, confirming the defect is
 the application's and the WAF is the only variable.
 
-Rows 5–9 show the complementary result. `cat`, `cat$IFS`, `cat<`, `c\at` and `/bin/c?t`
-are five different spellings of the same command, and all five were caught by 932160.
-Obfuscation is therefore *not* the weakness: the rule normalises before matching.
+Rows 5–9 show the complementary result, but for a reason worth stating precisely. `cat`,
+`cat$IFS`, `cat<`, `c\at` and `/bin/c?t` all reference `/etc/passwd`, and `etc/passwd` is
+itself an entry in the phrase list used by rule 932160 (`unix-shell.data`, line 760); rule
+930120 independently scores restricted-file access. Those five payloads were therefore
+caught by the *path*, not by the command: 932160 is documented as matching "unix shell
+commands **with full path**", and the list contains `bin/cat` rather than `cat`.
+
+This was confirmed directly: sent as a bare value, `cat`, `id`, `pwd` and `uname` all
+return `200`, while `whoami` returns `403` (932260, a regex of bare command names).
+Obfuscation was therefore never the deciding factor in either direction — the model
+decides on membership of a fixed phrase list, and bare command names are largely outside
+it.
 
 ![Figure 4 — bypass matrix](evidence/screenshots/phase5-03-cmdi-post-bypass.png)
 
@@ -287,7 +296,8 @@ cosmetic transformation cannot change the verdict; the hypothesis that obfuscati
 bypasses CRS was falsified comprehensively.
 
 **F2 — Command injection detection is list-based and was bypassed four times.**
-`id` is absent from the command-name lists, so no obfuscation was required. The
+`id` is absent from the command-name lists — at paranoia level 1 the list holds `bin/id`,
+a full path, not the bare word — so no obfuscation was required. The
 separator used (`;`, `|`, `&&`, newline) is irrelevant to detection for the same reason:
 the rule matches the command word, not the shell grammar. This is the primary finding.
 
