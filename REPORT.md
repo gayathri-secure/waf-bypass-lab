@@ -304,6 +304,11 @@ rule that was written for the purpose.
 rewrites is invisible to rules written against the raw request. This is a structural
 limit of inline inspection, not a defect in CRS, and it explains F4.
 
+**F6 — Response-side detection classifies content, not intent.** DVWA's documentation
+page is refused (outbound score 18 against a threshold of 4) because it quotes MySQL
+error strings and PHP function names in its own text. The same page also emits a genuine
+PHP warning, so the block is partly justified. See §7.3.4.
+
 ### Risk assessment
 
 | Finding | Likelihood | Impact | Rating |
@@ -312,6 +317,7 @@ limit of inline inspection, not a defect in CRS, and it explains F4.
 | F3 — missing input validation | root cause of F2 | critical | **Critical** |
 | F5 — post-normalisation inspection | medium | variable | **Medium** |
 | F4 — rule 920181 ineffective | low (normalisation mitigates) | high if exploited | **Low** |
+| F6 — outbound false positive | high (on every page load) | low (one documentation page unavailable) | **Low** |
 | SQL injection path | very low | high | **Low** |
 
 F2 is rated Critical rather than High because exploitation required no specialised
@@ -365,13 +371,106 @@ it should constrain.
 | CL+TE smuggling probe | 200 | **403** | 1000002 |
 
 All four execution-confirmed bypasses, the further backtick case, and the smuggling probe
-now return 403. Three legitimate inputs are unaffected. The 33 payloads that were
-blocked before the change were not re-executed as part of this work; a full regression
-across the complete payload set is recommended before any deployment decision.
+now return `403`, and three legitimate inputs are unaffected. The subsections below test
+whether the rule covers the *class* rather than the tested payloads, replay the complete
+payload set, and measure false positives.
 
 ![Figure 8 — bypasses now blocked](evidence/screenshots/phase7-01-custom-rule-blocks-bypasses.png)
 
 ![Figure 9 — rules 1000001 and 1000002 in the audit log](evidence/screenshots/phase7-04-custom-rule-map.png)
+
+#### 7.3.1 Coverage of the class, not the payload list
+
+Before the rule was re-enabled it was temporarily disabled, and nine commands and
+separators that appear nowhere in the 37-payload set were sent, so that only CRS's own
+detection was being measured.
+
+| Command or separator | CRS alone | With `1000001` | Rule that fired on the blocked request |
+|---|---|---|---|
+| `;ls` | 403 | 403 | CRS 932125, 932340 |
+| `;pwd` | **200** | **403** | 1000001 |
+| `;uname -a` | 403 | 403 | CRS 932235, 932260 |
+| `;hostname` | 403 | 403 | CRS 932235, 932340, 932380 |
+| `;ps aux` | **200** | **403** | 1000001 |
+| `;env` | 403 | 403 | CRS 932340 |
+| `;date` | **200** | **403** | 1000001 |
+| `\|\|id` | **200** | **403** | 1000001 |
+| `&id` | **200** | **403** | 1000001 |
+
+Five of nine were invisible to CRS at paranoia level 1. In each of the five, the audit
+log of the blocked request contains `1000001` and **no** `93xxxx` rule: the gap was
+closed without teaching CRS a single new command name. Execution was confirmed for the
+four that ran (`/var/www/html/vulnerabilities/exec`, `www-data`, a date, `uid=33`).
+`||id` produced no output because `||` short-circuits when its left operand succeeds —
+a property of the operator, not of the WAF.
+
+The two separators are the more useful result. Neither `||` nor `&` had been tested in
+Phase 5, and neither is scored by CRS. Detection at paranoia level 1 misses both command
+names and shell operators, because it enumerates the first and ignores the second.
+
+#### 7.3.2 Regression of the complete payload set
+
+With both custom rules armed, all 37 payloads were replayed from an archived set
+(`payloads/sqli.txt`, `payloads/cmdi.txt`, `payloads/smuggling.py`, driven by
+`scripts/regression.ps1`):
+
+| Set | Payloads | Refused | Bypassed |
+|---|---|---|---|
+| SQL injection | 22 | 22 | 0 |
+| Command injection | 12 | 12 | 0 |
+| Request smuggling | 3 | 3 | 0 |
+| **Total** | **37** | **37** | **0** |
+
+Thirty-six were refused with `403`. The remaining probe — the space-before-colon
+`Transfer-Encoding` variant — is refused with `400` during header parsing, before
+ModSecurity runs. It is refused, but by the HTTP server rather than by a rule.
+
+#### 7.3.3 False positives
+
+Six legitimate values for the vulnerable parameter and four ordinary application pages
+were requested with the rules armed.
+
+| Check | Result |
+|---|---|
+| `127.0.0.1`, `8.8.8.8`, `localhost`, `::1`, `2001:4860:4860::8888`, `scanme.nmap.org` | 200 (6/6) |
+| `/`, `/vulnerabilities/sqli/?id=1&Submit=Submit`, `/vulnerabilities/brute/` | 200 (3/3) |
+| `/instructions.php` | **403** — outbound rules, see §7.3.4 |
+
+No legitimate input value was refused. The IPv6 forms matter: the allow-list was written
+to admit them, and they pass.
+
+#### 7.3.4 A response-side false positive
+
+`/instructions.php` is refused with `403` through the WAF and served `200` on the control
+path, so the WAF is the cause. The request is clean — inbound score 0 — and the block
+comes from the response body.
+
+| Rule | What it matched |
+|---|---|
+| 951230 mysql SQL information leakage | the literal string `ERROR 1045 (28000)`, quoted from DVWA's own README |
+| 951250 sqlite SQL information leakage | a `Warning` string containing `SQLite` |
+| 953100 PHP information leakage | `Cannot modify header information - headers already sent` |
+| 953110 PHP source code leakage | the token `fopen`, quoted in the README text |
+| 959100 outbound anomaly score exceeded | total 18 against a threshold of 4 |
+
+Two different things happen at once. Most of the score comes from documentation that
+*describes* attacks, and response inspection — which classifies content, not intent —
+cannot distinguish a page *about* SQL errors from a page *leaking* SQL errors. But one
+match is a true positive: DVWA genuinely emits `Cannot modify header information -
+headers already sent` from `instructions.php:5`, which leaks internal paths. The correct
+remedy is therefore not a blanket exclusion: fix the PHP warning, then narrow the
+outbound rules for the documentation path.
+
+This is the same lesson as F2 at a different layer. A detector that matches content finds
+content that resembles an attack, including legitimate content.
+
+![Figure 10 — five of nine unseen commands and separators are invisible to CRS](evidence/screenshots/phase9-01-crs-coverage-gaps.png)
+
+![Figure 11 — the five gaps blocked by 1000001, with no CRS rule firing](evidence/screenshots/phase9-03-rule-map-1000001.png)
+
+![Figure 12 — the complete payload set refused after remediation](evidence/screenshots/phase9-04-regression-34-web.png)
+
+![Figure 13 — the outbound rules that refuse the documentation page](evidence/screenshots/phase9-07-outbound-rule-map.png)
 
 ### 7.4 Recommendations beyond the lab
 
@@ -403,12 +502,13 @@ across the complete payload set is recommended before any deployment decision.
 - The smuggling work used single-request probes with `Connection: close`. A definitive
   desynchronisation proof of concept requires pipelined requests on a persistent
   connection.
-- False-positive testing covered three legitimate values only. A realistic benign corpus
-  and a crawl of normal application pages are required before production use.
+- False-positive testing covered six legitimate parameter values and four application
+  pages. It surfaced one outbound false positive (§7.3.4), which shows that a full crawl
+  and an outbound tuning pass are still required before production use.
 - Docker NAT presented all clients as `172.18.0.1`, so per-client controls were not
   exercised.
-- Outbound (response) rules were not tested.
-
+- Outbound (response) rules were exercised only incidentally, by the false-positive check
+  in §7.3.4; their thresholds were not tuned.
 **Future work:** full regression across all 37 payloads; paranoia-level comparison;
 double-encoded input; attack classes with no signature at all (business logic, IDOR);
 and second-order SQL injection, where the WAF inspects the storage request but not the

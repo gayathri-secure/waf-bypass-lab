@@ -66,6 +66,11 @@ WAF is the only difference.
 | 942190 / 942360 | SQL comment / tautology patterns | Phase 4 |
 | 942230 | conditional statements (`CASE WHEN`) | Phase 4 |
 | 942500 | MySQL versioned comment `/*!50000*/` | Phase 4 |
+| 951230 | SQL information leakage in the response (MySQL) | Phase 9 |
+| 951250 | SQL information leakage in the response (SQLite) | Phase 9 |
+| 953100 | PHP information leakage in the response | Phase 9 |
+| 953110 | PHP source code leakage in the response | Phase 9 |
+| 959100 | outbound blocking evaluation (score ≥ 4 → 403) | Phase 9 |
 | 949110 | blocking evaluation (score ≥ 5 → 403) | all blocks |
 | 980170 | anomaly score report (not a block) | all requests |
 | **1000001** | **custom: allow-list on the `ip` parameter** | Phase 7 |
@@ -221,6 +226,55 @@ Probes (raw TCP, `Host: lab.local`): `payloads/smuggling.py`.
 - Dumped WAF audit log to `evidence/logs/` for quotable evidence.
 - Published to GitHub.
 
+### 2026-11-17 — Phase 9: coverage map, regression, false positives
+
+Goal: show that `1000001` blocks the **class**, not the four payloads it was written for.
+
+**Method.** Disabled the rule without editing it: appended `SecRuleRemoveById 1000001`
+to the end of `rules/custom-cmdi.conf`, then `docker restart waf`. Confirmed by
+`ip=127.0.0.1;id` returning `200` (it is `403` when the rule is armed).
+
+Coverage map — nine payloads never used in Phase 5, rule off then on:
+
+| Payload | CRS only | With the rule | Fired |
+|---|---|---|---|
+| `;ls` | 403 | 403 | CRS 932125, 932340 |
+| `;pwd` | **200** | **403** | 1000001 |
+| `;uname -a` | 403 | 403 | CRS 932235, 932260 |
+| `;hostname` | 403 | 403 | CRS 932235, 932340, 932380 |
+| `;ps aux` | **200** | **403** | 1000001 |
+| `;env` | 403 | 403 | CRS 932340 |
+| `;date` | **200** | **403** | 1000001 |
+| `\|\|id` | **200** | **403** | 1000001 |
+| `&id` | **200** | **403** | 1000001 |
+
+- 5 of 9 were invisible to CRS at PL1. In all five, the blocked request's log contains
+  `1000001` and **no** `93xxxx` — the gap closed without teaching CRS a new command.
+- Execution confirmed with the rule off: `pwd` → `/var/www/html/vulnerabilities/exec`,
+  `ps aux` → `www-data`, `date` → `2026`, `&id` → `uid=33`.
+- `||id` produced no output: `||` runs its right side only if the left fails, and
+  `ping 127.0.0.1` succeeds. Operator behaviour, not a WAF gap.
+- Two predictions were wrong — `hostname` and `env` were blocked. The list is wider
+  than I assumed and still incomplete, which is exactly what a list looks like.
+- `||` and `&` were never tested in Phase 5 and neither is scored at PL1: PL1 misses
+  separators as well as command names.
+
+**Regression.** All 37 payloads replayed with both rules armed
+(`scripts/regression.ps1`; CSV in `evidence/logs/phase9-regression.csv`): 22 SQLi and
+12 cmdi → **34/34 `403`**; smuggling → **2 × `403`, 1 × `400`** (the malformed
+space-before-colon header is rejected by Apache's parser before ModSecurity runs).
+37/37 refused, 0 bypasses.
+
+**False positives.** 6/6 legitimate `ip` values, including `::1` and
+`2001:4860:4860::8888`; 3/3 ordinary pages. But `/instructions.php` → 403.
+
+**Outbound false positive (new finding, F6).** `/instructions.php` is 403 through the
+WAF and 200 on the control path. Inbound score 0, outbound 18 against a threshold of 4
+→ `959100`. Matches: 951230 (`ERROR 1045 (28000)`, quoted from DVWA's README), 951250,
+953100 (`Cannot modify header information - headers already sent`), 953110 (`fopen`).
+The PHP warning is a **real** leak on that page, so the block is partly a true positive:
+fix the warning, then narrow the outbound rules for that path. No blanket exclusion.
+
 ---
 
 ## Answered questions
@@ -241,11 +295,12 @@ Probes (raw TCP, `Host: lab.local`): `payloads/smuggling.py`.
 - Double-encoding (`%2527` on the SQLi page) — not yet tested.
 - Paranoia level 2 and 3: how much of the command-injection gap closes, and at what
   false-positive cost?
-- False-positive testing beyond three benign inputs — a realistic benign corpus and a
-  crawl of normal DVWA pages.
+- A full benign corpus and a crawl of the application — Phase 9 covered six values and
+  four pages only.
 - Other attack classes: LFI, XXE, SSRF, unrestricted file upload.
 - A proper desynchronisation PoC with pipelined requests on one persistent connection.
-- Outbound (response) rules were never exercised.
+- Outbound rule thresholds — Phase 9 found one false positive (F6, §6 of
+  `07-tuning-cycle.md`); they have not been tuned.
 
 ---
 
@@ -277,6 +332,7 @@ Probes (raw TCP, `Host: lab.local`): `payloads/smuggling.py`.
 | 5 — command injection | `phase5-01` … `phase5-05` | 4 bypasses execute; rule map shows no detection rule |
 | 6 — smuggling | `phase6-01` … `phase6-03` | CL/TE normalised; `Content-Length` stripped pre-inspection |
 | 7 — custom rules | `phase7-01` … `phase7-04` | bypasses → 403; no false positives; smuggling → 403 |
+| 9 — coverage & regression | `phase9-01` … `phase9-07` | 5/9 unseen commands missed by CRS, all blocked by 1000001; 37/37 refused; benign corpus; outbound F6 |
 
 Log extracts: `phase2-sqli-942100.txt`, `all-transactions.jsonl`,
 `custom-rule-hits.log`, `phase7-transactions.jsonl`.

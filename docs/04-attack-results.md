@@ -158,3 +158,75 @@ bodies, so the header is refused outright.
 
 **Result:** 5/5 bypasses closed, 3/3 benign inputs unaffected, smuggling probe
 now refused with 403.
+
+---
+
+## Phase 9 — Coverage map and regression
+
+Phase 7 proved the rules block the payloads that motivated them. Phase 9 asks the harder
+question: does `1000001` block the class? Full narrative: `07-tuning-cycle.md`.
+
+### 9.1 Coverage map (rule temporarily disabled)
+
+`SecRuleRemoveById 1000001` appended to `rules/custom-cmdi.conf`, `docker restart waf`,
+confirmed by `ip=127.0.0.1;id` → `200`.
+
+| Payload | CRS only | With 1000001 | Rules logged when blocked |
+|---|---|---|---|
+| `127.0.0.1;ls` | 403 | 403 | 932125, 932340 |
+| `127.0.0.1;pwd` | **200** | **403** | 1000001 |
+| `127.0.0.1;uname -a` | 403 | 403 | 932235, 932260 |
+| `127.0.0.1;hostname` | 403 | 403 | 932235, 932340, 932380 |
+| `127.0.0.1;ps aux` | **200** | **403** | 1000001 |
+| `127.0.0.1;env` | 403 | 403 | 932340 |
+| `127.0.0.1;date` | **200** | **403** | 1000001 |
+| `127.0.0.1\|\|id` | **200** | **403** | 1000001 |
+| `127.0.0.1&id` | **200** | **403** | 1000001 |
+
+Execution proof with the rule off: `pwd` → `/var/www/html/vulnerabilities/exec`,
+`ps aux` → `www-data`, `date` → `2026`, `&id` → `uid=33`. `||id` produced no output
+because `||` short-circuits on a successful left operand.
+
+**The two separators matter.** `||` and `&` were not part of Phase 5, and neither is
+scored at PL1: CRS enumerates command names and does not model shell grammar.
+
+### 9.2 Regression of all 37 payloads
+
+`scripts/regression.ps1` replays `payloads/sqli.txt` and `payloads/cmdi.txt`;
+`payloads/smuggling.py` covers the three raw probes.
+
+| Set | Payloads | Refused | Bypassed |
+|---|---|---|---|
+| SQL injection | 22 | 22 | 0 |
+| Command injection | 12 | 12 | 0 |
+| Request smuggling | 3 | 3 | 0 |
+| **Total** | **37** | **37** | **0** |
+
+36 × `403`. The space-before-colon `Transfer-Encoding` probe returns `400`, refused by
+Apache's header parser before ModSecurity phase 1 — refused, but not by a rule.
+
+### 9.3 False positives
+
+| Check | Result |
+|---|---|
+| `127.0.0.1`, `8.8.8.8`, `localhost`, `::1`, `2001:4860:4860::8888`, `scanme.nmap.org` | 200 (6/6) |
+| `/`, `/vulnerabilities/sqli/?id=1&Submit=Submit`, `/vulnerabilities/brute/` | 200 (3/3) |
+| `/instructions.php` | **403** — outbound, see 9.4 |
+
+### 9.4 Outbound false positive (F6)
+
+`/instructions.php`: `403` through the WAF, `200` direct. Inbound score 0; outbound
+score 18 against threshold 4.
+
+```
+rules: 951230, 951250, 953100, 953110, 959100, 980170
+```
+
+The page quotes `ERROR 1045 (28000)` and `fopen` from DVWA's own README, so content
+inspection treats documentation as disclosure. It also emits a genuine PHP warning
+(`Cannot modify header information - headers already sent`, `instructions.php:5`), so
+the block is partly a true positive. Remedy: fix the warning, then narrow outbound
+rules for that path.
+
+**Result:** 37/37 payloads refused, 0 bypasses, 6/6 legitimate inputs accepted, one
+documented outbound false positive.

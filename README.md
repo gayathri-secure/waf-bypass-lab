@@ -15,13 +15,17 @@ SQL injection (detected by libinjection, a grammar parser) and command injection
 | Attack class | Payloads | Blocked | Bypassed | Detection model |
 |---|---|---|---|---|
 | SQL injection — manual obfuscation | 22 | 22 | 0 | libinjection (grammar) |
-| SQL injection — sqlmap | 2 runs | 2 | 0 | scanner UA + libinjection |
-| Cross-site scripting | 1 | 1 | 0 | keyword / regex |
 | **Command injection** | **12** | **8** | **4** | **command-name list** |
 | HTTP request smuggling | 3 | 3 | 0 | HTTP server normalisation |
 | **Total** | **37** | **33** | **4** | — |
 
-**After remediation (Phase 7): 37/37 blocked, 0 bypasses, 0 false positives.**
+Two further checks sit outside the 37: `sqlmap` (2 runs, both blocked) and one reflected
+XSS payload (blocked).
+
+**After remediation (Phase 9 regression): 37/37 payloads refused — 36 with `403` by rule,
+1 with `400` by the HTTP parser — 0 bypasses, 0 request-side false positives.** One
+response-side false positive is documented in
+[`docs/07-tuning-cycle.md`](docs/07-tuning-cycle.md)
 
 > SQL injection was stopped 22 out of 22 times. Command injection was bypassed four
 > times — `;id`, `|id`, `&&id`, newline + `id` — because CRS at paranoia level 1

