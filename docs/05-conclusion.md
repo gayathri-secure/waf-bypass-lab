@@ -31,6 +31,14 @@ Anything the front-end rewrites is invisible to rules written against the raw
 request. This is a structural limit of inline WAFs, not a CRS defect, and it is
 why F4's compensating rule had to be a policy decision.
 
+**F6 — Response-side detection classifies content, not intent (partly a true positive).**
+`/instructions.php` is refused with `403` through the WAF and served `200` on the control
+path. The request scores 0 inbound; the block is entirely outbound (score 18 against a
+threshold of 4), from rules 951230, 951250, 953100 and 953110. The page quotes MySQL error
+strings and PHP function names from DVWA's own README, but it also emits a genuine
+`Cannot modify header information - headers already sent` warning. The remedy is to disable
+`display_errors` first, then narrow the outbound rules for that path.
+
 ## Risk summary
 
 | Finding | Class | Likelihood | Impact | Rating |
@@ -40,6 +48,7 @@ why F4's compensating rule had to be a policy decision.
 | F4 — rule 920181 ineffective | smuggling | low (normalisation mitigates) | high if it worked | **Low** |
 | F5 — post-normalisation inspection | evasion | medium | varies | **Medium** (inherent) |
 | SQLi path | data disclosure | very low | high | **Low** |
+| F6 — outbound false positive | response inspection | high (on page load) | low (one documentation page) | **Low** || F6 — outbound false positive | response inspection | high (on page load) | low (one documentation page) | **Low** |
 
 Bypass F2 is rated Critical rather than High because exploitation needs no
 specialised tooling: four characters and the word `id` produced remote command
@@ -51,7 +60,10 @@ execution, and the WAF logged nothing.
 
 1. **Rule 1000001 — positive security model** for the vulnerable parameter.
    Allow-list `^[0-9a-zA-Z.:-]+$`, scoped to the endpoint by URI and parameter.
-   Verified: 5/5 bypasses blocked, 3/3 legitimate inputs still served.
+   Verified: 5/5 bypasses blocked; then nine commands never used in Phase 5 were sent
+   with the rule disabled — five were invisible to CRS, and all nine were blocked by
+   1000001 alone. The full 37-payload set was replayed with 37/37 refused, and 6/6
+   legitimate values plus 3/3 ordinary pages were unaffected.
 2. **Rule 1000002 — protocol policy** rejecting `Transfer-Encoding`, compensating
    for 920181 being unreachable after Apache's normalisation.
 3. Both rules are mounted as a CRS plugin (`custom-after.conf`) so they load after
@@ -88,7 +100,7 @@ execution, and the WAF logged nothing.
   persistent connection.
 - The WAF sees every client as `172.18.0.1` because of Docker NAT, so per-client
   rate limiting and attribution were not exercised.
-- Outbound (response) rules were not tested.
+- Outbound (response) rules were only exercised by the Phase 9 false-positive check; their thresholds were not tuned.
 
 ## Conclusion
 

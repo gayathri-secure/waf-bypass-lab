@@ -91,7 +91,7 @@ reflected cross-site scripting as a baseline check, command injection, HTTP requ
 smuggling, custom rule authoring and verification.
 
 **Out of scope:** authentication and session management, business-logic flaws, file
-inclusion, XXE, SSRF, file upload, outbound (response) rule tuning, and multi-tenant
+inclusion, XXE, SSRF, file upload, outbound (response) rule tuning beyond the single false-positive check in §7.3.4, and multi-tenant
 deployment concerns.
 
 **Constraints:** a single target application at its lowest security setting; one
@@ -153,7 +153,7 @@ Before sending payloads, each rule class was classified by *how it decides*:
 | Class | Detector | Nature of the decision |
 |---|---|---|
 | SQL injection | libinjection (942100) | parses the input into tokens and tests whether the token sequence is valid SQL |
-| Command injection | keyword lists (932160, 932380) | compares normalised input against a finite set of command names |
+| Command injection | keyword lists (932160, 932380) | compares normalised input against a finite phrase list — at PL1, full paths such as bin/cat |
 | Request smuggling | protocol rules (920181) plus the HTTP server | framing |
 
 This classification predicts the test strategy. A parser decides on **structure**, so
@@ -519,7 +519,9 @@ content that resembles an attack, including legitimate content.
   exercised.
 - Outbound (response) rules were exercised only incidentally, by the false-positive check
   in §7.3.4; their thresholds were not tuned.
-**Future work:** full regression across all 37 payloads; paranoia-level comparison;
+
+**Future work:** a paranoia-level comparison (PL2 detection-only, blocking still at
+PL1); a full crawl so the benign corpus covers every module rather than three;
 double-encoded input; attack classes with no signature at all (business logic, IDOR);
 and second-order SQL injection, where the WAF inspects the storage request but not the
 later execution.
@@ -584,10 +586,11 @@ and one plain tautology.
 | 4 — SQLi obfuscation | `phase4-01` … `phase4-05` | 22/22 blocked; 942100 throughout; HPP blocked |
 | 5 — command injection | `phase5-01` … `phase5-05` | four bypasses with output; no detection rule |
 | 6 — request smuggling | `phase6-01` … `phase6-03` | probes; header normalisation |
-| 7 — custom rules | `phase7-01` … `phase7-04` | bypasses closed; false-positive check; smuggling refused |
+| 7 — custom rules | `phase7-01` … `phase7-04` | bypasses closed; rule map; smuggling refused |
+| 9 — tuning cycle | `phase9-01` … `phase9-07` | 5/9 unseen commands missed by CRS; 37/37 refused; benign corpus; outbound F6 |
 
 Audit-log extracts: `evidence/logs/phase2-sqli-942100.txt`,
-`evidence/logs/all-transactions.jsonl`, `evidence/logs/custom-rule-hits.log`.
+`evidence/logs/all-transactions.jsonl`, `evidence/logs/custom-rule-hits.log`,`evidence/logs/phase9-regression.csv`.
 
 ## Appendix C — Reproduction
 

@@ -148,7 +148,7 @@ case variation, `UNION SELECT`, alternative whitespace, plus `LIKE`/`BETWEEN`/`I
 
 ![Command injection bypass matrix](evidence/screenshots/phase5-03-cmdi-post-bypass.png)
 
-Three payloads returned `200 | uid=33` — the server executed the command and the
+Four payloads returned `200 | uid=33` — the server executed the command and the
 WAF let it through. The audit log confirms the failure:
 
 ![Bypass rows show no detection rule](evidence/screenshots/phase5-04-cmdi-post-rule-map.png)
@@ -221,6 +221,10 @@ probe from `200` into `403`.
    stripped `Content-Length` before ModSecurity could evaluate rule 920181.
 5. **Inline WAFs inspect traffic after HTTP normalisation.** Anything the front
    end rewrites is invisible to the rules — a structural limit, not a CRS defect.
+6. **Response rules classify content, not intent.** A documentation page that quotes
+   attack strings is refused (outbound score 18 against a threshold of 4), while the
+   same page also emits a real PHP warning — so the block is partly justified.
+   Recorded as F6 in [`docs/07-tuning-cycle.md`](docs/07-tuning-cycle.md).
 
 Full analysis, risk ratings and remediation: [`docs/05-conclusion.md`](docs/05-conclusion.md)
 
@@ -233,18 +237,23 @@ Full analysis, risk ratings and remediation: [`docs/05-conclusion.md`](docs/05-c
 ├── docker-compose.yml           # 3 services, WAF in blocking mode at PL1
 ├── rules/
 │   └── custom-cmdi.conf         # Phase 7: rules 1000001, 1000002
+├── scripts/
+│   ├── regression.ps1           # replays all 37 payloads (Phase 9)
+│   └── collect-waf-log.ps1      # pulls audit-log entries
 ├── docs/
 │   ├── 00-lab-notes.md          # running notebook, per-phase entries
 │   ├── 03-baseline-blocking.md  # what CRS blocks unmodified
 │   ├── 04-attack-results.md     # every payload, status code and rule ID
-│   └── 05-conclusion.md         # findings, risk, remediation, limitations
+│   ├── 05-conclusion.md         # findings, risk, remediation, limitations
+│   ├── 06-demo-script.md        # 6-minute class demonstration
+│   └── 07-tuning-cycle.md       # Phase 9: coverage, regression, F6
 ├── payloads/
 │   ├── sqli.txt
 │   ├── cmdi.txt
 │   └── smuggling.py
 └── evidence/
-    ├── screenshots/             # 29 screenshots, phase2-* … phase7-*
-    └── logs/                    # WAF audit-log extracts (JSON)
+    ├── screenshots/             # 36 screenshots, phase2-* … phase9-*
+    └── logs/                    # audit-log extracts, incl. phase9-regression.csv
 ```
 
 ## Full evidence index
@@ -257,6 +266,7 @@ Full analysis, risk ratings and remediation: [`docs/05-conclusion.md`](docs/05-c
 | 5 — command injection | `phase5-01` … `phase5-05` | 4 bypasses execute; rule map shows no detection rule |
 | 6 — request smuggling | `phase6-01` … `phase6-03` | CL/TE probes normalised; `Content-Length` stripped pre-inspection |
 | 7 — custom rules | `phase7-01` … `phase7-04` | bypasses → 403; no false positives; smuggling probe → 403 |
+| 9 — tuning cycle | `phase9-01` … `phase9-07` | 5/9 unseen commands missed by CRS; 37/37 refused; benign corpus; outbound F6 |
 
 ## Limitations
 
@@ -267,7 +277,7 @@ Full analysis, risk ratings and remediation: [`docs/05-conclusion.md`](docs/05-c
   the allow-list pattern, it is not a deployable rule set.
 - Smuggling testing used single-request probes on `Connection: close`; a definitive
   desynchronisation PoC would need pipelined requests on a persistent connection.
-- Outbound (response) rules were not tested.
+Outbound (response) rules were exercised only by the Phase 9 false-positive check; their thresholds were not tuned.
 
 ## Ethics
 
